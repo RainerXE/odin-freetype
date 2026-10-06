@@ -6,6 +6,9 @@ when ODIN_OS == .Windows {
     foreign import freetype "freetype.lib"
 } else when ODIN_OS == .Linux {
     foreign import freetype "system:freetype"
+} else when ODIN_OS == .Darwin {
+    // Bare name: Homebrew's lib dir is passed with -L at link time.
+    foreign import freetype "system:freetype"
 }
 
 Library       :: distinct rawptr
@@ -469,8 +472,9 @@ Render_Mode :: enum {
     Mono   = 2,
     LCD    = 3,
     LCD_V  = 4,
+    SDF    = 5, // FreeType >= 2.11: single-channel signed distance field
 
-    Max    = 5,
+    Max    = 6,
 }
 
 Size_Metrics :: struct {
@@ -558,6 +562,8 @@ foreign freetype {
     
     @(link_name="FT_Load_Glyph")   load_glyph   :: proc(face: Face, index: c.uint, flags: Load_Flags) -> Error ---
     @(link_name="FT_Render_Glyph") render_glyph :: proc(slot: Glyph_Slot, render_mode: Render_Mode) -> Error ---
+    // Module properties, e.g. the spread of the sdf/bsdf renderers.
+    @(link_name="FT_Property_Set") property_set :: proc(library: Library, module_name: cstring, property_name: cstring, value: rawptr) -> Error ---
 
     @(link_name="FT_Set_Pixel_Sizes") set_pixel_sizes :: proc(face: Face, pixel_width, pixel_height: u32) -> Error ---
     @(link_name="FT_Request_Size")    request_size    :: proc(face: Face, req: Size_Request) -> Error ---
@@ -565,4 +571,6 @@ foreign freetype {
 
     @(link_name="FT_Set_Transform") set_transform   :: proc(face: Face, _matrix: ^Matrix, delta: ^Vector) ---
     @(link_name="FT_Get_Transform") get_transform   :: proc(face: Face, _matrix: ^Matrix, delta: ^Vector) ---
+    @(link_name="FT_GlyphSlot_Embolden") glyphslot_embolden :: proc(slot: Glyph_Slot) ---
+    @(link_name="FT_Outline_Transform") outline_transform :: proc(outline: ^Outline, _matrix: ^Matrix) ---
 }
