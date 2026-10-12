@@ -9,6 +9,10 @@ when ODIN_OS == .Windows {
 } else when ODIN_OS == .Darwin {
     // Bare name: Homebrew's lib dir is passed with -L at link time.
     foreign import freetype "system:freetype"
+} else when ODIN_OS == .JS {
+    // RuiShin: pure-WASM (js_wasm32, no Emscripten). freetype_wasm.o is built from the
+    // FreeType source by build_wasm.sh (clang + vendor:libc-shim) and is not committed.
+    foreign import freetype "freetype_wasm.o"
 }
 
 Library       :: distinct rawptr
