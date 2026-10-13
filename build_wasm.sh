@@ -16,28 +16,15 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 HERE="$PWD"
 SUPPORT="$HERE/../wasm-support"
+source "$SUPPORT/toolchain.sh"
 
 FT_VERSION="2.14.3"
 FT_SHA256="36bc4f1cc413335368ee656c42afca65c5a3987e8768cc28cf11ba775e785a5f"
 FT_URL="https://download.savannah.gnu.org/releases/freetype/freetype-${FT_VERSION}.tar.xz"
 CACHE="${FT_SRC_CACHE:-$HERE/../../artifacts/wasm-src}"
 
-find_clang() {
-    if [ -n "${CLANG:-}" ]; then echo "$CLANG"; return; fi
-    for c in /opt/homebrew/opt/llvm/bin/clang /usr/local/opt/llvm/bin/clang \
-             "$(command -v clang-22 clang-21 clang-20 clang 2>/dev/null | head -1)"; do
-        if [ -n "$c" ] && [ -x "$c" ] && "$c" --print-targets 2>/dev/null | grep -qi wasm32; then echo "$c"; return; fi
-    done
-    echo "ERROR: no clang with the wasm32 backend (Apple's has none; 'brew install llvm')" >&2; exit 1
-}
-find_wasm_ld() {
-    if [ -n "${WASM_LD:-}" ]; then echo "$WASM_LD"; return; fi
-    command -v wasm-ld || ls /opt/homebrew/bin/wasm-ld /usr/local/bin/wasm-ld 2>/dev/null | head -1 \
-        || { echo "ERROR: wasm-ld not found ('brew install lld')" >&2; exit 1; }
-}
 CLANG="$(find_clang)"; WASM_LD="$(find_wasm_ld)"
-SYSROOT="$(odin root)vendor/libc-shim"
-[ -d "$SYSROOT" ] || { echo "ERROR: $SYSROOT missing (needs an Odin with vendor:libc-shim)"; exit 1; }
+SYSROOT="$(libc_shim)"
 
 # --- source (downloaded into its own directory, verified before use) ---
 mkdir -p "$CACHE"
@@ -46,7 +33,7 @@ if [ ! -f "$TARBALL" ]; then
     echo "downloading FreeType ${FT_VERSION}"
     curl -sfL "$FT_URL" -o "$TARBALL"
 fi
-GOT="$(shasum -a 256 "$TARBALL" | awk '{print $1}')"
+GOT="$(sha256_of "$TARBALL")"
 [ "$GOT" = "$FT_SHA256" ] || { echo "ERROR: FreeType tarball SHA-256 mismatch ($GOT)"; rm -f "$TARBALL"; exit 1; }
 SRC="$CACHE/freetype-${FT_VERSION}"
 [ -d "$SRC" ] || tar -xf "$TARBALL" -C "$CACHE"
@@ -60,7 +47,7 @@ sed -e 's#^\#define FT_CONFIG_OPTION_ENVIRONMENT_PROPERTIES#/* & (RuiShin: off, 
     "$SRC/include/freetype/config/ftoption.h" > "$OBJ/ruishin-ftoption.h"
 cp "$HERE/ruishin-ftmodule.h" "$OBJ/"
 
-SJLJ=(-mexception-handling -mllvm -wasm-enable-sjlj -mllvm -wasm-use-legacy-eh)
+read -r -a SJLJ <<< "$(sjlj_flags "$CLANG")"
 CFLAGS=(-c -O2 --target=wasm32 --sysroot="$SYSROOT" -I"$SUPPORT/include" -I"$SRC/include" -I"$OBJ"
         "${SJLJ[@]}" -DFT2_BUILD_LIBRARY -DNDEBUG -Wno-everything
         '-DFT_CONFIG_MODULES_H=<ruishin-ftmodule.h>' '-DFT_CONFIG_OPTIONS_H=<ruishin-ftoption.h>')
