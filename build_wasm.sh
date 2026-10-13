@@ -6,7 +6,9 @@
 #   clang --target=wasm32 --sysroot=$(odin root)vendor/libc-shim
 # using a trimmed module list (ruishin-ftmodule.h) and a generated ftoption.h (no zlib/LZW/getenv),
 # plus the setjmp/longjmp runtime from ../wasm-support (FreeType's cmap validator needs
-# setjmp), merged into ONE object with `wasm-ld -r`.
+# setjmp), merged into ONE object with `wasm-ld -r`. libc functions libc-shim lacks
+# (strcat, ...) are NOT embedded: they come from wasm-support/libc_extras.o, linked once by
+# src/web/webc.
 #
 #   CLANG=...  override compiler        WASM_LD=...  override wasm-ld
 #   FT_SRC_CACHE=dir  where the tarball is kept (default: <repo>/artifacts/wasm-src)
@@ -74,7 +76,6 @@ done
 # runtime pieces: no libc-shim sysroot needed for these two, the third uses it
 "$CLANG" -c -O1 --target=wasm32 -mexception-handling "$SUPPORT/sjlj_rt.c" -o "$OBJ/sjlj_rt.o"
 "$CLANG" -c --target=wasm32 -mexception-handling "$SUPPORT/sjlj_tags.s" -o "$OBJ/sjlj_tags.o"
-"$CLANG" -c -O2 --target=wasm32 --sysroot="$SYSROOT" "$SUPPORT/libc_extras.c" -o "$OBJ/libc_extras.o"
 
 "$WASM_LD" -r "$OBJ"/*.o -o "$HERE/freetype_wasm.o"
 echo "built $HERE/freetype_wasm.o ($(wc -c < "$HERE/freetype_wasm.o") bytes)"
